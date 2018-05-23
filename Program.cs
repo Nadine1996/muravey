@@ -57,7 +57,12 @@ namespace test_dict_select
         public static Duga[,] dugi;
         
         public static Muravey[] muravey;
-        public const int COUNT_MURAVEY = 1;
+        public const int COUNT_MURAVEY = 2;
+        public const double EVAPORATION_COEF = 0.5;
+        public const double ALPHA = 1;
+        public const double BETA = 1;
+        public const int Q = 1;
+
 
         private static double Evristic(int i, int j, Muravey muravey){
             if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.VIRTUAL)
@@ -72,7 +77,8 @@ namespace test_dict_select
                 if (result > 1) return 0;
                 else return result;
             }
-            if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.REAL)
+            if ((vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.REAL)||
+                (vertex[j].Type == MACHINE.VIRTUAL && vertex[i].Type == MACHINE.REAL))
             {
                 int sum = 0;
                 if (muravey.target.ContainsValue(vertex[j].Num))
@@ -88,11 +94,23 @@ namespace test_dict_select
                 if(result>1) return 0;
                 else return result;
             }
-            
+
+           
             throw new Exception("Машины имеют не допустимый тип: " + i.ToString() + ", " + j.ToString());
         }
 
-        static void Main(string[] args)
+        private static void restartEvristic()
+        {
+            Muravey muravey = new Muravey(0);
+            for(int i = 0; i< vertex.Count; i++)
+                for(int j = 0; j<vertex.Count; j++)
+                {
+                    if(dugi[i, j]!=null)
+                        dugi[i, j].N = Evristic(i, j, muravey);
+                }
+        }
+
+            static void Main(string[] args)
         {
             
             vertex = new List<Vertex>();
@@ -107,11 +125,20 @@ namespace test_dict_select
             try
             {
                 dugi = new Duga[vertex.Count+1, vertex.Count+1];
+                //вирт->физич. машина
                 dugi[1, 3] = new Duga(1, Evristic(1, 3, muravey[0]));
-                dugi[1, 4] = new Duga(1, Evristic(1, 4, muravey[0]));
-                dugi[2, 3] = new Duga(1, Evristic(2, 3, muravey[0]));
-                dugi[2, 4] = new Duga(1, Evristic(2, 4, muravey[0]));
+                dugi[3, 1] = new Duga(1, Evristic(3, 1, muravey[0]));
 
+                dugi[1, 4] = new Duga(1, Evristic(1, 4, muravey[0]));
+                dugi[4, 1] = new Duga(1, Evristic(1, 4, muravey[0]));
+
+                dugi[2, 3] = new Duga(1, Evristic(2, 3, muravey[0]));
+                dugi[3, 2] = new Duga(1, Evristic(2, 3, muravey[0]));
+
+                dugi[2, 4] = new Duga(1, Evristic(2, 4, muravey[0]));
+                dugi[4, 2] = new Duga(1, Evristic(2, 4, muravey[0]));
+
+                //вирт->вирт. машина
                 dugi[1, 2] = new Duga(1, Evristic(1, 2, muravey[0]));
                 dugi[2, 1] = new Duga(1, Evristic(2, 1, muravey[0]));
             
@@ -120,16 +147,8 @@ namespace test_dict_select
             {
                 Console.WriteLine(ex.Message);
             }
-            int CurrentMashine = 0;
-            for (int i = 0; i < vertex.Count; i++)
-            {
-                if (vertex[i].Type == MACHINE.VIRTUAL)
-                {
-                    CurrentMashine = vertex[i].Num;
-                    break;
-                }
-            }
-            Algoritm(CurrentMashine);
+           
+            Algoritm();
            
             Console.ReadKey();
         }
@@ -176,9 +195,10 @@ namespace test_dict_select
             else  return indMax;
         }
 
-        public static void Algoritm(int CurrentMashine)
+        public static void Algoritm()
         {
-           
+            int CurrentMashine = 0;
+
             List<int> ListVirtual = new List<int>();
             for(int i=0; i<vertex.Count; i++)
                 if(vertex[i].Type == MACHINE.VIRTUAL)
@@ -186,7 +206,20 @@ namespace test_dict_select
 
             for (int m = 0; m < COUNT_MURAVEY; m++)
             {
-                if(m!=0)  muravey[m] = new Muravey(0);
+                //получение 1й вирт.машины
+                for (int i = 0; i < vertex.Count; i++)
+                {
+                    if (vertex[i].Type == MACHINE.VIRTUAL)
+                    {
+                        CurrentMashine = vertex[i].Num;
+                        break;
+                    }
+                }
+
+                //перезапись в первоначальное эвристической ф-ии
+                restartEvristic();
+
+                if (m!=0)  muravey[m] = new Muravey(0);
                 while (!muravey[m].Tabu.SequenceEqual(ListVirtual))
                 {
                     muravey[m].Way.Add(CurrentMashine);
@@ -212,6 +245,49 @@ namespace test_dict_select
                     CurrentMashine = foundNewStartMachine(muravey[m], CurrentMashine);
                     if(CurrentMashine ==0) muravey[m].Way.Add(CurrentMashine);
                     Console.WriteLine("");
+                }
+                updateFerromon(muravey[m]);
+            }
+        }
+
+        public static bool vertexContains(Muravey muravey, int i, int j)
+        {
+            string Way = "";
+            for(int w =0; w < muravey.Way.Count; w++)
+            {
+                Way += muravey.Way[w] + ", ";
+            }
+            if (Way.Contains(i + ", " + j)) return true;
+            else return false;
+        }
+
+        public static double deltaTau(Muravey muravey)
+        {
+            double sum = 0;
+            
+            for (int k = 1; k < (muravey.Way.Count - 1); k++)
+            {
+                int i = muravey.Way[k];
+                int j = muravey.Way[k+1];
+                if(vertexContains(muravey, i,j) && dugi[i, j]!=null)
+                    sum += dugi[i, j].N * Q;
+            }
+            return sum;
+        }
+
+        public static void updateFerromon(Muravey muravey)
+        {
+            double delta = deltaTau(muravey);
+            for (int i = 0; i < vertex.Count; i++)
+            {
+                for (int j = 0; j < vertex.Count; j++)
+                {
+                    if (dugi[i, j] != null)
+                    {
+                        dugi[i, j].T = (1 - EVAPORATION_COEF) * dugi[i, j].T;
+                        //если по дуге прошел муравей
+                        if (vertexContains(muravey, i, j)) dugi[i, j].T += delta;
+                    }
                 }
             }
         }
