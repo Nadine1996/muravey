@@ -32,13 +32,19 @@ namespace test_dict_select
 
     class Muravey
     {
-        public List<int> Way;
+        //путь муравья
+        public List<int> Way; 
         public int Index;
+        //посещенные вершины, запрещены для повторного посещения (вирт. машины)
         public List<int> Tabu;
+        //соответствие вирт.машина-реальная машина
+        public Dictionary<int, int> target;
+
         public Muravey(int first)
         {
             Way = new List<int>();
             Tabu = new List<int>();
+            target = new Dictionary<int, int>();
             Way.Add(first);
         }
     }
@@ -49,11 +55,11 @@ namespace test_dict_select
     {
         public static List<Vertex> vertex;
         public static Duga[,] dugi;
-        public static Dictionary<int, int> target;
+        
         public static Muravey[] muravey;
         public const int COUNT_MURAVEY = 1;
 
-        private static double Evristic(int i, int j){
+        private static double Evristic(int i, int j, Muravey muravey){
             if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.VIRTUAL)
             {
                 int max = 0;
@@ -69,9 +75,9 @@ namespace test_dict_select
             if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.REAL)
             {
                 int sum = 0;
-                if (target.ContainsValue(vertex[j].Num))
+                if (muravey.target.ContainsValue(vertex[j].Num))
                 {
-                    var keys = target.Where(x => x.Value == vertex[j].Num).ToList();
+                    var keys = muravey.target.Where(x => x.Value == vertex[j].Num).ToList();
 
                     foreach (var k in keys)
                     {
@@ -88,23 +94,26 @@ namespace test_dict_select
 
         static void Main(string[] args)
         {
-            target = new Dictionary<int, int>();
+            
             vertex = new List<Vertex>();
             vertex.Add(new Vertex(0, MACHINE.ROOT, 0));
             vertex.Add(new Vertex(2, MACHINE.VIRTUAL, 1));
             vertex.Add(new Vertex(4, MACHINE.VIRTUAL, 2));
             vertex.Add(new Vertex(4, MACHINE.REAL, 3));
             vertex.Add(new Vertex(2, MACHINE.REAL, 4));
+
+            muravey = new Muravey[COUNT_MURAVEY];
+            muravey[0] = new Muravey(0);
             try
             {
                 dugi = new Duga[vertex.Count+1, vertex.Count+1];
-                dugi[1, 3] = new Duga(1, Evristic(1, 3));
-                dugi[1, 4] = new Duga(1, Evristic(1, 4));
-                dugi[2, 3] = new Duga(1, Evristic(2, 3));
-                dugi[2, 4] = new Duga(1, Evristic(2, 4));
+                dugi[1, 3] = new Duga(1, Evristic(1, 3, muravey[0]));
+                dugi[1, 4] = new Duga(1, Evristic(1, 4, muravey[0]));
+                dugi[2, 3] = new Duga(1, Evristic(2, 3, muravey[0]));
+                dugi[2, 4] = new Duga(1, Evristic(2, 4, muravey[0]));
 
-                dugi[1, 2] = new Duga(1, Evristic(1, 2));
-                dugi[2, 1] = new Duga(1, Evristic(2, 1));
+                dugi[1, 2] = new Duga(1, Evristic(1, 2, muravey[0]));
+                dugi[2, 1] = new Duga(1, Evristic(2, 1, muravey[0]));
             
             }
             catch (Exception ex)
@@ -162,12 +171,14 @@ namespace test_dict_select
                     P.Add(j, p);
                 }
             }
-            return indMax;
+            //если все вирт. машины посещены,то переход на вершину 0
+            if(maxP == 0) return 0;
+            else  return indMax;
         }
 
         public static void Algoritm(int CurrentMashine)
         {
-            muravey = new Muravey[COUNT_MURAVEY];
+           
             List<int> ListVirtual = new List<int>();
             for(int i=0; i<vertex.Count; i++)
                 if(vertex[i].Type == MACHINE.VIRTUAL)
@@ -175,7 +186,7 @@ namespace test_dict_select
 
             for (int m = 0; m < COUNT_MURAVEY; m++)
             {
-                muravey[m] = new Muravey(0);
+                if(m!=0)  muravey[m] = new Muravey(0);
                 while (!muravey[m].Tabu.SequenceEqual(ListVirtual))
                 {
                     muravey[m].Way.Add(CurrentMashine);
@@ -195,23 +206,24 @@ namespace test_dict_select
                             P.Add(j, p);
                         }
                     }
-                    muravey[0].Way.Add(indMax);
-                    addTarget(CurrentMashine, indMax);
-                    CurrentMashine = foundNewStartMachine(muravey[0], CurrentMashine);
-
+                    muravey[m].Way.Add(indMax);
+                    addTarget(CurrentMashine, indMax, muravey[m]);
+                    muravey[m].Way.Add(CurrentMashine);
+                    CurrentMashine = foundNewStartMachine(muravey[m], CurrentMashine);
+                    if(CurrentMashine ==0) muravey[m].Way.Add(CurrentMashine);
                     Console.WriteLine("");
                 }
             }
         }
 
-        public static void addTarget(int CurrentMashine, int RealMachine)
+        public static void addTarget(int CurrentMashine, int RealMachine, Muravey muravey)
         {
-            target.Add(CurrentMashine, RealMachine);
+            muravey.target.Add(CurrentMashine, RealMachine);
             for (int i = 0; i < vertex.Count; i++)
             {
                 if (vertex[i].Type == MACHINE.VIRTUAL && dugi[i, RealMachine] != null)
                 {
-                    dugi[i, RealMachine].N = Evristic(i, RealMachine);
+                    dugi[i, RealMachine].N = Evristic(i, RealMachine, muravey);
                 }
             }
         }
