@@ -166,6 +166,7 @@ namespace test_dict_select
             return sum;
         }
 
+        //выбор следующей вирт.машины
         public static int foundNewStartMachine(Muravey muravey, int CurrentMashine)
         {
             Dictionary<int, double> P = new Dictionary<int, double>();
@@ -195,6 +196,7 @@ namespace test_dict_select
             else  return indMax;
         }
 
+        //муравьиный алгорит
         public static void Algoritm()
         {
             int CurrentMashine = 0;
@@ -216,7 +218,7 @@ namespace test_dict_select
                     }
                 }
 
-                //перезапись в первоначальное эвристической ф-ии
+                //перезапись в первоначальные значения эвристической ф-ии
                 restartEvristic();
 
                 if (m!=0)  muravey[m] = new Muravey(0);
@@ -239,17 +241,24 @@ namespace test_dict_select
                             P.Add(j, p);
                         }
                     }
+
+                    //добавление вершины к пути муравья
                     muravey[m].Way.Add(indMax);
+                    //присвоение вирт машины физической
                     addTarget(CurrentMashine, indMax, muravey[m]);
+                    //добавление вершины к пути муравья(возврат к вирт. машине)
                     muravey[m].Way.Add(CurrentMashine);
+                    //получение индекса вит=рт.машины, к которой переходит муравей
                     CurrentMashine = foundNewStartMachine(muravey[m], CurrentMashine);
-                    if(CurrentMashine ==0) muravey[m].Way.Add(CurrentMashine);
-                    Console.WriteLine("");
+                    //если все вирт.машины посещены,то возврат к исходному
+                    if (CurrentMashine == 0) { muravey[m].Way.Add(CurrentMashine); m++; }
                 }
+                //изменение кол-ва ферромона на дугах
                 updateFerromon(muravey[m]);
             }
         }
 
+        //был ли переход из i-той вершины в j-тую
         public static bool vertexContains(Muravey muravey, int i, int j)
         {
             string Way = "";
@@ -261,6 +270,7 @@ namespace test_dict_select
             else return false;
         }
 
+        //вычисление дельта-тау для муравья
         public static double deltaTau(Muravey muravey)
         {
             double sum = 0;
@@ -275,6 +285,7 @@ namespace test_dict_select
             return sum;
         }
 
+        //изменение кол-ва ферромона после прохождения муравья
         public static void updateFerromon(Muravey muravey)
         {
             double delta = deltaTau(muravey);
@@ -292,6 +303,7 @@ namespace test_dict_select
             }
         }
 
+        //назначение вирт.машины физической для муравья и пересчет эвристической ф-ии 
         public static void addTarget(int CurrentMashine, int RealMachine, Muravey muravey)
         {
             muravey.target.Add(CurrentMashine, RealMachine);
