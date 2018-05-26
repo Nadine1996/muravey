@@ -53,16 +53,25 @@ namespace test_dict_select
 
     class Program
     {
+        //список вершин
         public static List<Vertex> vertex;
+        //массив дуг
         public static Duga[,] dugi;
         
+        //массив муравьев
         public static Muravey[] muravey;
-        public const int COUNT_MURAVEY = 2;
+        //количество муравьев
+        public const int COUNT_MURAVEY = 4;
+        //коэффициент испарение феромона
         public const double EVAPORATION_COEF = 0.5;
+        //коэффициент влияния феромона
         public const double ALPHA = 1;
+        //коэффициент влияния эвристической функции
         public const double BETA = 1;
         public const int Q = 1;
 
+        //"рулетка" для выбора пути муравью
+        public static Random random = new Random();
 
         private static double Evristic(int i, int j, Muravey muravey){
             if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.VIRTUAL)
@@ -94,11 +103,10 @@ namespace test_dict_select
                 if(result>1) return 0;
                 else return result;
             }
-
-           
             throw new Exception("Машины имеют не допустимый тип: " + i.ToString() + ", " + j.ToString());
         }
 
+        //назначение дугам первоначальных значений эвристической ф-ии после прохода каждого муравья
         private static void restartEvristic()
         {
             Muravey muravey = new Muravey(0);
@@ -153,6 +161,7 @@ namespace test_dict_select
             Console.ReadKey();
         }
 
+        //вычисление знаменателя в формуле вероятности (для выбора пути муравьем)
         public static double ZnamenatelP(int i, MACHINE type)
         {
             double sum = 0;
@@ -166,35 +175,31 @@ namespace test_dict_select
             return sum;
         }
 
-        //выбор следующей вирт.машины
-        public static int foundNewStartMachine(Muravey muravey, int CurrentMashine)
-        {
-            Dictionary<int, double> P = new Dictionary<int, double>();
-            double maxP = -1, p = 0; int indMax = -1;
-            for (int j = 0; j < vertex.Count; j++)
-            {
-                if (vertex[j].Type == MACHINE.VIRTUAL && dugi[CurrentMashine, j] != null)
-                {
-                    if (!muravey.Tabu.Contains(j))
-                    {
-                        p = dugi[CurrentMashine, j].T * dugi[CurrentMashine, j].N / ZnamenatelP(CurrentMashine, MACHINE.VIRTUAL);
-                    }
-                    else
-                    {
-                        p = 0;
-                    }
-                    if (p > maxP)
-                    {
-                        maxP = p;
-                        indMax = j;
-                    }
-                    P.Add(j, p);
-                }
-            }
-            //если все вирт. машины посещены,то переход на вершину 0
-            if(maxP == 0) return 0;
-            else  return indMax;
-        }
+        ////выбор следующей вирт.машины
+        //public static int foundNewStartMachine(Muravey muravey, int CurrentMashine)
+        //{
+        //    Dictionary<int, double> P = new Dictionary<int, double>();
+        //    double maxP = -1, p = 0; int indMax = -1;
+        //    for (int j = 0; j < vertex.Count; j++)
+        //    {
+        //        if (vertex[j].Type == MACHINE.VIRTUAL && dugi[CurrentMashine, j] != null)
+        //        {
+        //            if (!muravey.Tabu.Contains(j))
+        //            {
+        //                p = dugi[CurrentMashine, j].T * dugi[CurrentMashine, j].N / ZnamenatelP(CurrentMashine, MACHINE.VIRTUAL);
+        //            }
+        //            else
+        //            {
+        //                p = 0;
+        //            }
+                   
+        //            P.Add(j, p);
+        //        }
+        //    }
+        //    //если все вирт. машины посещены,то переход на вершину 0
+        //    if(maxP == 0) return 0;
+        //    else  return indMax;
+        //}
 
         //муравьиный алгорит
         public static void Algoritm()
@@ -220,42 +225,75 @@ namespace test_dict_select
 
                 //перезапись в первоначальные значения эвристической ф-ии
                 restartEvristic();
-
                 if (m!=0)  muravey[m] = new Muravey(0);
+
                 while (!muravey[m].Tabu.SequenceEqual(ListVirtual))
                 {
+                    //добавление текущей вершины к пути муравья
                     muravey[m].Way.Add(CurrentMashine);
+                    //добавление текущей вершины в список табу для муравья
                     muravey[m].Tabu.Add(CurrentMashine);
-                    Dictionary<int, double> P = new Dictionary<int, double>();
-                    double maxP = 0; int indMax = 0;
-                    for (int j = 0; j <= vertex.Count; j++)
-                    {
-                        if (dugi[CurrentMashine, j] != null && vertex[j].Type == MACHINE.REAL)
-                        {
-                            double p = dugi[CurrentMashine, j].T * dugi[CurrentMashine, j].N / ZnamenatelP(CurrentMashine, MACHINE.REAL);
-                            if (p > maxP)
-                            {
-                                maxP = p;
-                                indMax = j;
-                            }
-                            P.Add(j, p);
-                        }
-                    }
 
-                    //добавление вершины к пути муравья
-                    muravey[m].Way.Add(indMax);
+                    //получение следующей физической вершины
+                    int indVertex = roulettePath(CurrentMashine, MACHINE.REAL, muravey[m]);
+
+                     //добавление вершины к пути муравья
+                     muravey[m].Way.Add(indVertex);
+                    if (indVertex == 0) {continue;}
                     //присвоение вирт машины физической
-                    addTarget(CurrentMashine, indMax, muravey[m]);
+                    addTarget(CurrentMashine, indVertex, muravey[m]);
                     //добавление вершины к пути муравья(возврат к вирт. машине)
                     muravey[m].Way.Add(CurrentMashine);
                     //получение индекса вит=рт.машины, к которой переходит муравей
-                    CurrentMashine = foundNewStartMachine(muravey[m], CurrentMashine);
+                    CurrentMashine = roulettePath(CurrentMashine, MACHINE.VIRTUAL, muravey[m]);
                     //если все вирт.машины посещены,то возврат к исходному
-                    if (CurrentMashine == 0) { muravey[m].Way.Add(CurrentMashine); m++; }
+                    if (CurrentMashine == 0) { muravey[m].Way.Add(CurrentMashine);continue; }
                 }
                 //изменение кол-ва ферромона на дугах
                 updateFerromon(muravey[m]);
             }
+            Console.ReadLine();
+        }
+
+        public static int roulettePath(int CurrentMashine, MACHINE machine, Muravey muravey)
+        {
+            //Dictionary для хранения вероятностей перехода  вирт--->физ 
+            Dictionary<int, double> P = new Dictionary<int, double>();
+            int indVertex = 0;
+            double p;
+
+            //находнеие вероятностей перехода
+            for (int j = 0; j <= vertex.Count; j++)
+            {
+                if (dugi[CurrentMashine, j] != null && vertex[j].Type == machine)
+                {
+                    if ((machine == MACHINE.VIRTUAL && !muravey.Tabu.Contains(j)) || machine == MACHINE.REAL)
+                    {
+                        //верроятность перехода
+                        p = dugi[CurrentMashine, j].T * dugi[CurrentMashine, j].N / ZnamenatelP(CurrentMashine, machine);
+                    }
+                    else
+                    {
+                        p = 0;
+                    }
+                    P.Add(j, p);
+                }
+            }
+
+            //рулетка
+            double roulette = random.NextDouble();
+            double rouletteSum = 0;
+            foreach (KeyValuePair<int, double> kvp in P)
+            {
+                rouletteSum += kvp.Value;
+                if (rouletteSum > roulette)
+                {
+                    indVertex = kvp.Key;
+                    break;
+                }
+            }
+
+            return indVertex;
         }
 
         //был ли переход из i-той вершины в j-тую
@@ -270,6 +308,8 @@ namespace test_dict_select
             else return false;
         }
 
+       
+        
         //вычисление дельта-тау для муравья
         public static double deltaTau(Muravey muravey)
         {
