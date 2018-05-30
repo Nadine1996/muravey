@@ -67,7 +67,7 @@ namespace test_dict_select
 
         public void setTheBestWay(Muravey muravey)
         {
-            if (muravey.target.Count > Target.Count)
+            if (muravey.target.Count >= Target.Count)
             {
                 Way = muravey.Way;
                 Target = muravey.target;
@@ -88,14 +88,14 @@ namespace test_dict_select
         //массив муравьев
         public static Muravey[] muravey;
         //количество муравьев
-        public const int COUNT_MURAVEY = 20;
+        public const int COUNT_MURAVEY = 50;
         //коэффициент испарение феромона
-        public const double EVAPORATION_COEF = 0.4;
+        public const double EVAPORATION_COEF = 0.5;
         //коэффициент влияния феромона
         public const double ALPHA = 1;
         //коэффициент влияния эвристической функции
         public const double BETA = 1;
-        public const double Q = 0.5;
+        public const double Q = 0.01;
 
         //"рулетка" для выбора пути муравью
         public static Random random = new Random();
@@ -216,10 +216,10 @@ namespace test_dict_select
                         curves[j, i] = new Duga(1, Evristic(j, i, muravey));
                     }
                     if
-                        (list[i].Type == MACHINE.ROOT)
+                        (list[i].Type == MACHINE.ROOT && list[j].Type == MACHINE.VIRTUAL)
                         {
-                            curves[i, j] = new Duga(1, 0.5);
-                            curves[j, i] = new Duga(1, 0.5);
+                            curves[i, j] = new Duga(1, 1);
+                            curves[j, i] = new Duga(1, 1);
                         }
                 }
             }
@@ -251,6 +251,7 @@ namespace test_dict_select
             {
                 Console.WriteLine(ex.Message);
             }
+           
             Console.ReadKey();
         }
 
@@ -262,25 +263,43 @@ namespace test_dict_select
             {
                 if (curves[i, j] != null && list[j].Type == type && list[j].Branch == branch && !muravey.Tabu.Contains(j))
                 {
-                    sum += curves[i, j].T * curves[i, j].N;
+                    sum += Math.Pow(curves[i, j].T,ALPHA) * Math.Pow(curves[i, j].N,BETA);
                 }
             }
             return sum;
         }
 
+        public static double ZnamenatelStart(List<Vertex> list, BRANCH branch, Duga[,] curves)
+        {
+            MACHINE type = MACHINE.VIRTUAL;
+            double sum = 0;
+            for (int j = 0; j < list.Count; j++)
+            {
+                if (curves[0, j] != null && list[j].Type == type && list[j].Branch == branch)
+                {
+                    sum += Math.Pow(curves[0, j].T,ALPHA) * Math.Pow(curves[0, j].N,BETA);
+                }
+            }
+            return sum;
+        }
 
-        public static int startNode(List<Vertex> list, BRANCH branch)
+        public static int startNode(List<Vertex> list, Duga[,] curves, BRANCH branch)
         {
             int CurrentMashine = 0;
+            Dictionary<int, double> P = new Dictionary<int, double>();
+            double p;
             for (int i = 0; i < list.Count; i++)
             {
                 if (list[i].Type == MACHINE.VIRTUAL && list[i].Branch == branch)
                 {
-                    CurrentMashine = list[i].Num;
-                    break;
+                    //CurrentMashine = list[i].Num;
+                    //верроятность перехода
+                    p = Math.Pow(curves[CurrentMashine, i].T,ALPHA) * Math.Pow(curves[CurrentMashine, i].N,BETA) / ZnamenatelStart(list, branch, curves);
+                    P.Add(i, p);
                 }
             }
-            return CurrentMashine;
+
+            return CurrentMashine = rouletteChouse(P);
         }
         
         //муравьиный алгорит
@@ -304,19 +323,23 @@ namespace test_dict_select
 
                 Console.WriteLine();
                 antAlhoritm(vertex, muravey[m], ListVirtual_storage, dugi, BRANCH.STORAGE);
+
+                //изменение кол-ва ферромона на дугах
+                updateFerromon(vertex, muravey[m], dugi);
+
                 foreach (int i in muravey[m].Way)
                     Console.Write(i + "->");
                 Console.WriteLine();
+                muravey[m].target = muravey[m].target.OrderBy(pair => pair.Key).ToDictionary(pair => pair.Key, pair => pair.Value);
                 solution.setTheBestWay(muravey[m]);
-               
+                
             }
             
-            Console.ReadLine();
         }
 
         public static void antAlhoritm(List<Vertex> list, Muravey muravey, List<int> ListVirtual, Duga[,] curves, BRANCH branch)
         {
-            int CurrentMashine = startNode(list,branch);
+            int CurrentMashine = startNode(list, curves, branch);
             //перезапись в первоначальные значения эвристической ф-ии
             restartEvristic(list, curves);
 
@@ -336,7 +359,7 @@ namespace test_dict_select
                     //присвоение вирт машины физической
                     addTarget(list, CurrentMashine, indVertex, muravey, curves);
                     //добавление вершины к пути муравья(возврат к вирт. машине)
-                    //  muravey.Way.Add(CurrentMashine);
+                      muravey.Way.Add(CurrentMashine);
                 }
 
                 //получение индекса вирт.машины, к которой переходит муравей (вирт ->вирт)
@@ -344,8 +367,27 @@ namespace test_dict_select
                 //если все вирт.машины посещены,то возврат к исходному
                 if (CurrentMashine == 0) { muravey.Way.Add(CurrentMashine); break; }
             }
-            //изменение кол-ва ферромона на дугах
-            updateFerromon(list, muravey, curves);
+            
+
+        }
+
+        //выбор дальнейшего пути из вероятностей
+        public static int rouletteChouse(Dictionary<int, double> P)
+        {
+            int indVertex = 0;
+            //рулетка
+            double roulette = random.NextDouble();
+            double rouletteSum = 0;
+            foreach (KeyValuePair<int, double> kvp in P)
+            {
+                rouletteSum += kvp.Value;
+                if (rouletteSum > roulette)
+                {
+                    indVertex = kvp.Key;
+                    break;
+                }
+            }
+            return indVertex;
         }
 
         public static int roulettePath(List<Vertex> list, int CurrentMashine,BRANCH branch, MACHINE machine, Muravey muravey, Duga[,] curves)
@@ -359,12 +401,12 @@ namespace test_dict_select
             for (int j = 0; j < list.Count; j++)
             {
                 //существут дуга && соотв. тип (вирт./физ.) && соответствут ветка (вычислит./storage)
-                if (curves[CurrentMashine, j] != null && list[j].Type == machine && list[j].Branch == branch)
+                if (curves[CurrentMashine, j] != null &&  (list[j].Type == machine && list[j].Branch == branch) )
                 {
                     if ((machine == MACHINE.VIRTUAL && !muravey.Tabu.Contains(j)) || machine == MACHINE.REAL)
                     {
                         //верроятность перехода
-                        p = curves[CurrentMashine, j].T * curves[CurrentMashine, j].N / ZnamenatelP(list,CurrentMashine,branch, machine, curves, muravey);
+                        p = Math.Pow(curves[CurrentMashine, j].T,ALPHA) * Math.Pow(curves[CurrentMashine, j].N,BETA) / ZnamenatelP(list,CurrentMashine,branch, machine, curves, muravey);
                     }
                     else
                     {
@@ -374,20 +416,7 @@ namespace test_dict_select
                 }
             }
 
-            //рулетка
-            double roulette = random.NextDouble();
-            double rouletteSum = 0;
-            foreach (KeyValuePair<int, double> kvp in P)
-            {
-                rouletteSum += kvp.Value;
-                if (rouletteSum > roulette)
-                {
-                    indVertex = kvp.Key;
-                    break;
-                }
-            }
-
-            return indVertex;
+          return indVertex = rouletteChouse(P);
         }
 
         //был ли переход из i-той вершины в j-тую
@@ -398,7 +427,14 @@ namespace test_dict_select
             {
                 Way += muravey.Way[w] + ", ";
             }
-            if (Way.Contains(i + ", " + j)) return true;
+            if (Way.IndexOf(i + ", " + j + ", ")!=-1)
+            {
+                if(i==0)
+                    return true;
+                return true;
+
+            }
+                
             else return false;
         } 
         
@@ -407,7 +443,7 @@ namespace test_dict_select
         {
             double sum = 0;
             
-            for (int k = 1; k < (muravey.Way.Count - 1); k++)
+            for (int k = 0; k < (muravey.Way.Count - 1); k++)
             {
                 int i = muravey.Way[k];
                 int j = muravey.Way[k+1];
@@ -421,6 +457,7 @@ namespace test_dict_select
         public static void updateFerromon(List<Vertex> list, Muravey muravey, Duga[,] curves)
         {
             double delta = deltaTau(muravey, curves);
+            int count = 0;
             for (int i = 0; i < list.Count; i++)
             {
                 for (int j = 0; j < list.Count; j++)
@@ -429,7 +466,13 @@ namespace test_dict_select
                     {
                         curves[i, j].T = (1 - EVAPORATION_COEF) * curves[i, j].T;
                         //если по дуге прошел муравей
-                        if (vertexContains(muravey, i, j)) curves[i, j].T += delta;
+                        if (vertexContains(muravey, i, j))
+                        {
+                            curves[i, j].T += delta;
+                            if (i == 0)
+                                count++;
+                        }
+                            
                     }
                 }
             }
