@@ -19,7 +19,6 @@ namespace test_dict_select
     class Vertex
     {
         public int Core;
-        public bool NonFree;
         public BRANCH Branch;
         public MACHINE Type;
         public int Num;
@@ -40,7 +39,6 @@ namespace test_dict_select
     {
         //путь муравья
         public List<int> Way; 
-        public int Index;
         //посещенные вершины, запрещены для повторного посещения (вирт. машины)
         public List<int> Tabu;
         //соответствие вирт.машина-реальная машина
@@ -59,10 +57,12 @@ namespace test_dict_select
     {
         public List<int> Way;
         public Dictionary<int, int> Target;
-        public theBestSolution()
+        public double[,] AdjacencyMatrix;
+        public theBestSolution(int vertex_count)
         {
             Way = new List<int>();
             Target = new Dictionary<int, int>();
+            AdjacencyMatrix = new double[vertex_count, vertex_count];
         }
 
         public void setTheBestWay(Muravey muravey)
@@ -72,6 +72,83 @@ namespace test_dict_select
                 Way = muravey.Way;
                 Target = muravey.target;
             }
+        }
+
+        //оценка сходимости алгоритма по последним 10 муравьям
+        public void estimateWay(Muravey [] muravey)
+        {
+            int[] count = new int [10];
+            if (muravey.Length >= 10)
+            {
+                for (int i = muravey.Length-1; i > (muravey.Length - 11); i--)
+                    for (int j = muravey.Length -1; j > (muravey.Length - 11); j--)
+                    {
+                        if (muravey[i].Way.SequenceEqual(muravey[j].Way))
+                            count[muravey.Length-1-i]++;
+                    }
+
+                int max = 0;
+                for(int i = 1; i<10; i++)
+                {
+                    if (count[i] > max) max = count[i];
+                }
+                this.Way = muravey[muravey.Length - 1 - max].Way;
+                this.Target = muravey[muravey.Length - 1 - max].target;
+            }
+        }
+
+        // Матрица смежности графа
+        public void theAdjacencyMatrixOfAGraph(List<Vertex> list, Duga[,] curves)
+        {
+            AdjacencyMatrix = new double[list.Count, list.Count];
+            for (int i = 0; i < list.Count; i++)
+                for (int j = 0; j < list.Count; j++)
+                    if (curves[i, j] != null && Program.vertexContains(this.Way, i, j))
+                    {
+                        AdjacencyMatrix[i, j] = 1;
+                        AdjacencyMatrix[j, i] = 1;
+                    }
+            //for (int i = 0; i < list.Count; i++)
+            //{
+            //    for (int j = 0; j < list.Count; j++)
+            //        Console.Write(AdjacencyMatrix[i, j] + " ");
+            //    Console.Write("\n");
+            //}
+
+            for (int i = 0; i < list.Count; i++)
+                for (int j = 0; j < i; j++)
+                    if (AdjacencyMatrix[i, j] == 1)
+                    {
+                        if (i == 0 || j == 0)
+                        {
+                            AdjacencyMatrix[i, j] = 0.5;
+                        }
+                        else
+                        {
+                            AdjacencyMatrix[i, j] = summCore(list, i, j) + summCore(list, j, i);
+
+                        }
+                        AdjacencyMatrix[j, i] = AdjacencyMatrix[i, j];
+                    }
+            //for (int i = 0; i < list.Count; i++)
+            //{
+            //    for (int j = 0; j < list.Count; j++)
+            //        Console.Write(AdjacencyMatrix[i, j] + " ");
+            //    Console.Write("\n");
+            //}
+            Console.WriteLine();
+        }
+
+        //часть формулы для назначения веса дугам
+        public double summCore(List<Vertex> list, int p, int q)
+        {
+            int summa = 0;
+            for (int i = 0; i < list.Count; i++)
+                if (this.AdjacencyMatrix[i, p] != 0 & i != q)
+                    summa += list[i].Core;
+
+            summa += list[q].Core;
+            return (double)summa / (double)list[p].Core;
         }
     }
 
@@ -84,7 +161,8 @@ namespace test_dict_select
         //массив дуг
         public static Duga[,] dugi;
         public static theBestSolution solution;
-        
+       
+
         //массив муравьев
         public static Muravey[] muravey;
         //количество муравьев
@@ -147,7 +225,7 @@ namespace test_dict_select
         }
 
         //считывание входных данных из файла
-        static void readInputfromFile()
+        static void readInputfromFile(string filePath)
         {
             //промежуточная строка для построчного считывания из файла 
             string line;
@@ -160,7 +238,7 @@ namespace test_dict_select
             //int counter_storage = 0;
             int count = 0;
 
-            System.IO.StreamReader file =   new System.IO.StreamReader(@"D:\1.txt");
+            System.IO.StreamReader file =   new System.IO.StreamReader(@filePath);
             while ((line = file.ReadLine()) != null)
             {
                 String[] substrings = line.Split(' ');
@@ -233,19 +311,22 @@ namespace test_dict_select
             storage = new List<Vertex>();
             storage.Add(new Vertex(0,BRANCH.ROOT, MACHINE.ROOT, 0));
             muravey = new Muravey[COUNT_MURAVEY];
-            solution = new theBestSolution();
+            
             
             try
             {
                 //заполнение списков vertex и  storage
-                readInputfromFile();
+                readInputfromFile("D:/1.txt");
 
                 dugi= new Duga[vertex.Count, vertex.Count];
+                solution = new theBestSolution(vertex.Count);
                 //добавление дуг в графе 
                 addCurves(vertex, dugi);
                
                 //проход по графу и назначение виртуаьных элементов на физические
                 Algoritm();
+                Deigstra(vertex, solution.AdjacencyMatrix);
+
             }
             catch (Exception ex)
             {
@@ -253,6 +334,85 @@ namespace test_dict_select
             }
            
             Console.ReadKey();
+        }
+
+        //алгоритм Дейкстры
+        public static void Deigstra(List<Vertex> list, double[,] a)
+        {
+            int VERTEXES = list.Count;                  //Число вершин в графе
+            int v = 0;
+            int infinity = 1000;                        // Бесконечность
+            int p = VERTEXES;                           // Количество вершин в графе
+
+            // Будем искать путь из вершины s в вершину g
+            int s;                                      // Номер исходной вершины
+            int g;                                      // Номер конечной вершины
+            Console.WriteLine("Введите s: ");           // Номер может изменяться от 0 до p-1
+            s = Convert.ToInt32(Console.ReadLine());
+            Console.WriteLine("Введите g: ");
+            g = Convert.ToInt32(Console.ReadLine());
+            int[] x = new int[VERTEXES];                //Массив, содержащий единицы и нули для каждой вершины,
+                                                        // x[i]=0 - еще не найден кратчайший путь в i-ю вершину,
+                                                        // x[i]=1 - кратчайший путь в i-ю вершину уже найден
+            double [] t = new double[VERTEXES];         //t[i] - длина кратчайшего пути от вершины s в i
+            int[] h = new int[VERTEXES];                //h[i] - вершина, предшествующая i-й вершине на кратчайшем пути
+
+            // Инициализируем начальные значения массивов
+            int u;                                      // Счетчик вершин
+            for (u = 0; u < p; u++)
+            {
+                t[u] = infinity;                        //Сначала все кратчайшие пути из s в i равны бесконечности
+                x[u] = 0;                               // и нет кратчайшего пути ни для одной вершины
+            }
+            h[s] = 0;                                   // s - начало пути, поэтому этой вершине ничего не предшествует
+            t[s] = 0;                                   // Кратчайший путь из s в s равен 0
+            x[s] = 1;                                   // Для вершины s найден кратчайший путь
+            v = s;                                      // Делаем s текущей вершиной
+
+            while (true)
+            {
+                // Перебираем все вершины, смежные v, и ищем для них кратчайший путь
+                for (u = 0; u < p; u++)
+                {
+                    if (a[v, u] == 0) continue;                // Вершины u и v несмежные
+                    if (x[u] == 0 && t[u] > t[v] + a[v, u])    //Если для вершины u еще не найден кратчайший путь и новый путь в u короче чем старый, то
+                    {
+                        t[u] = t[v] + a[v, u];                 //запоминаем более короткую длину пути в массив t и
+                        h[u] = v;                              //запоминаем, что v->u часть кратчайшего пути из s->u
+                    }
+                }
+
+                // Ищем из всех длин некратчайших путей самый короткий
+                double w = infinity;                           // Для поиска самого короткого пути
+                v = -1;                                        // В конце поиска v - вершина, в которую будет найден новый кратчайший путь. Она станет текущей вершиной
+                for (u = 0; u < p; u++)                        // Перебираем все вершины.
+                {
+                    if (x[u] == 0 && t[u] < w)                 // Если для вершины не найден кратчайший путь и если длина пути в вершину u меньше уже найденной, то
+                    {
+                        v = u;                                 // текущей вершиной становится u-я вершина
+                        w = t[u];
+                    }
+                }
+                if (v == -1)
+                {
+                    Console.WriteLine("Нет пути из вершины " + s + " в вершину " + g + ".");
+                    break;
+                }
+                if (v == g)                                    // Найден кратчайший путь, выводим его
+                {        
+                    Console.Write("Кратчайший путь из вершины " + s + " в вершину " + g + ":");
+                    u = g;
+                    while (u != s)
+                    {
+                        Console.Write(" " + u);
+                        u = h[u];
+                    }
+                    Console.Write(" " + s + ". Длина пути - " + t[g]);
+                    break;
+                }
+                x[v] = 1;
+            }
+            Console.ReadLine();
         }
 
         //вычисление знаменателя в формуле вероятности (для выбора пути муравьем)
@@ -269,6 +429,7 @@ namespace test_dict_select
             return sum;
         }
 
+        //вычисление знаменателя в формуле вероятности (для выбора стартового вирт. элемента муравьем)
         public static double ZnamenatelStart(List<Vertex> list, BRANCH branch, Duga[,] curves)
         {
             MACHINE type = MACHINE.VIRTUAL;
@@ -283,6 +444,7 @@ namespace test_dict_select
             return sum;
         }
 
+        //выбор стартового вирт. элемента муравьем
         public static int startNode(List<Vertex> list, Duga[,] curves, BRANCH branch)
         {
             int CurrentMashine = 0;
@@ -305,23 +467,27 @@ namespace test_dict_select
         //муравьиный алгорит
         public static void Algoritm()
         {
-
+            //список вирт машин
             List<int> ListVirtual_vertex = new List<int>();
             for(int i=0; i<vertex.Count; i++)
                 if(vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch ==BRANCH.CALCULATIVE)
                     ListVirtual_vertex.Add(vertex[i].Num);
 
+            //список вирт.элементов во всем графе
             List<int> ListVirtual_storage = new List<int>();
             for (int i = 0; i < vertex.Count; i++)
                 if (vertex[i].Type == MACHINE.VIRTUAL)
                     ListVirtual_storage.Add(vertex[i].Num);
 
+            //проход муравьями графа
             for (int m = 0; m < COUNT_MURAVEY; m++)
             {
                 muravey[m] = new Muravey(0);
+                //обход левой части графа(вирт.машины+физич.узлы)
                 antAlhoritm(vertex, muravey[m], ListVirtual_vertex, dugi, BRANCH.CALCULATIVE);
 
                 Console.WriteLine();
+                //обход правой части графа(storage-элементы +хранилища данных)
                 antAlhoritm(vertex, muravey[m], ListVirtual_storage, dugi, BRANCH.STORAGE);
 
                 //изменение кол-ва ферромона на дугах
@@ -330,11 +496,14 @@ namespace test_dict_select
                 foreach (int i in muravey[m].Way)
                     Console.Write(i + "->");
                 Console.WriteLine();
+
+                //сортировка списка соответствий по ключу
                 muravey[m].target = muravey[m].target.OrderBy(pair => pair.Key).ToDictionary(pair => pair.Key, pair => pair.Value);
                 solution.setTheBestWay(muravey[m]);
-                
             }
-            
+            //оценка сходимости алгоритма
+            solution.estimateWay(muravey);
+            solution.theAdjacencyMatrixOfAGraph(vertex, dugi);
         }
 
         public static void antAlhoritm(List<Vertex> list, Muravey muravey, List<int> ListVirtual, Duga[,] curves, BRANCH branch)
@@ -420,21 +589,14 @@ namespace test_dict_select
         }
 
         //был ли переход из i-той вершины в j-тую
-        public static bool vertexContains(Muravey muravey, int i, int j)
+        public static bool vertexContains(List<int> Way, int i, int j)
         {
-            string Way = "";
-            for(int w =0; w < muravey.Way.Count; w++)
+            string st = "";
+            for(int w =0; w < Way.Count; w++)
             {
-                Way += muravey.Way[w] + ", ";
+                st += Way[w] + ", ";
             }
-            if (Way.IndexOf(i + ", " + j + ", ")!=-1)
-            {
-                if(i==0)
-                    return true;
-                return true;
-
-            }
-                
+            if (st.IndexOf(i + ", " + j + ", ")!=-1) return true;
             else return false;
         } 
         
@@ -447,7 +609,7 @@ namespace test_dict_select
             {
                 int i = muravey.Way[k];
                 int j = muravey.Way[k+1];
-                if(vertexContains(muravey, i,j) && curves[i, j]!=null)
+                if(vertexContains(muravey.Way, i,j) && curves[i, j]!=null)
                     sum += curves[i, j].N * Q;
             }
             return sum;
@@ -466,7 +628,7 @@ namespace test_dict_select
                     {
                         curves[i, j].T = (1 - EVAPORATION_COEF) * curves[i, j].T;
                         //если по дуге прошел муравей
-                        if (vertexContains(muravey, i, j))
+                        if (vertexContains(muravey.Way, i, j))
                         {
                             curves[i, j].T += delta;
                             if (i == 0)
@@ -490,5 +652,7 @@ namespace test_dict_select
                 }
             }
         }
+
+
     }
 }
