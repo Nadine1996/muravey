@@ -154,19 +154,9 @@ namespace test_dict_select
 
     class Program
     {
-        //список вершин (вирт. машин +физ. вычислительных узлов)
-        public static List<Vertex> vertex;
-        //список вершин (storage-элементов +физ.хранилищ)
-        public static List<Vertex> storage;
-        //массив дуг
-        public static Duga[,] dugi;
-        public static theBestSolution solution;
-       
-
-        //массив муравьев
-        public static Muravey[] muravey;
+              
         //количество муравьев
-        public const int COUNT_MURAVEY = 50;
+        public const int COUNT_MURAVEY = 10;
         //коэффициент испарение феромона
         public const double EVAPORATION_COEF = 0.5;
         //коэффициент влияния феромона
@@ -178,34 +168,35 @@ namespace test_dict_select
         //"рулетка" для выбора пути муравью
         public static Random random = new Random();
 
-        private static double Evristic(int i, int j, Muravey muravey){
-            if (vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.VIRTUAL)
+        private static double Evristic(int i, int j, Muravey muravey, List<Vertex> list)
+        {
+            if (list[i].Type == MACHINE.VIRTUAL && list[j].Type == MACHINE.VIRTUAL)
             {
                 int max = 0;
-                for (int k = 0; k < vertex.Count; k++)
+                for (int k = 0; k < list.Count; k++)
                 {
-                    if (vertex[k].Core > max)
-                        max = vertex[k].Core;
+                    if (list[k].Core > max)
+                        max = list[k].Core;
                 }
-                double result = (double)vertex[j].Core / max;
+                double result = (double)list[j].Core / max;
                 if (result > 1) return 0;
                 else
                     return result;
             }
-            if ((vertex[i].Type == MACHINE.VIRTUAL && vertex[j].Type == MACHINE.REAL)||
-                (vertex[j].Type == MACHINE.VIRTUAL && vertex[i].Type == MACHINE.REAL))
+            if ((list[i].Type == MACHINE.VIRTUAL && list[j].Type == MACHINE.REAL)||
+                (list[j].Type == MACHINE.VIRTUAL && list[i].Type == MACHINE.REAL))
             {
                 int sum = 0;
-                if (muravey.target.ContainsValue(vertex[j].Num))
+                if (muravey.target.ContainsValue(list[j].Num))
                 {
-                    var keys = muravey.target.Where(x => x.Value == vertex[j].Num).ToList();
+                    var keys = muravey.target.Where(x => x.Value == list[j].Num).ToList();
 
                     foreach (var k in keys)
                     {
-                        sum += vertex[(int)k.Key].Core;
+                        sum += list[(int)k.Key].Core;
                     }
                 }
-                double result = (double)(sum + vertex[i].Core) / (double)vertex[j].Core;
+                double result = (double)(sum + list[i].Core) / (double)list[j].Core;
                 if(result>1) return 0;
                 else return result;
             }
@@ -220,12 +211,12 @@ namespace test_dict_select
                 for(int j = 1; j< list.Count; j++)
                 {
                     if(curves[i, j]!=null)
-                        curves[i, j].N = Evristic(i, j, muravey);
+                        curves[i, j].N = Evristic(i, j, muravey, list);
                 }
         }
 
         //считывание входных данных из файла
-        static void readInputfromFile(string filePath)
+        static void readInputfromFile(string filePath, List<Vertex> list)
         {
             //промежуточная строка для построчного считывания из файла 
             string line;
@@ -248,22 +239,22 @@ namespace test_dict_select
                     {
                         case "1":
                             count++;
-                            vertex.Add(new Vertex(Convert.ToInt32(substrings[1]),BRANCH.CALCULATIVE, MACHINE.VIRTUAL, count));
+                            list.Add(new Vertex(Convert.ToInt32(substrings[1]),BRANCH.CALCULATIVE, MACHINE.VIRTUAL, count));
                             break;
 
                         case "2":
                             count++;
-                            vertex.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.CALCULATIVE, MACHINE.REAL, count));
+                            list.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.CALCULATIVE, MACHINE.REAL, count));
                             break;
 
                         case "3":
                             count++;
-                            vertex.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.STORAGE, MACHINE.VIRTUAL, count));
+                            list.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.STORAGE, MACHINE.VIRTUAL, count));
                             break;
 
                         case "4":
                             count++;
-                            vertex.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.STORAGE, MACHINE.REAL, count));
+                            list.Add(new Vertex(Convert.ToInt32(substrings[1]), BRANCH.STORAGE, MACHINE.REAL, count));
                             break;
 
                         default:
@@ -290,8 +281,8 @@ namespace test_dict_select
                         (list[i].Type == MACHINE.VIRTUAL && list[j].Type == MACHINE.VIRTUAL && list[i].Branch == BRANCH.STORAGE && list[j].Branch == BRANCH.STORAGE) ||
                         (list[i].Type == MACHINE.VIRTUAL && list[j].Type == MACHINE.REAL && list[i].Branch == BRANCH.STORAGE && list[j].Branch == BRANCH.STORAGE))
                     {
-                        curves[i, j] = new Duga(1, Evristic(i, j, muravey));
-                        curves[j, i] = new Duga(1, Evristic(j, i, muravey));
+                        curves[i, j] = new Duga(1, Evristic(i, j, muravey,list));
+                        curves[j, i] = new Duga(1, Evristic(j, i, muravey, list));
                     }
                     if
                         (list[i].Type == MACHINE.ROOT && list[j].Type == MACHINE.VIRTUAL)
@@ -306,26 +297,16 @@ namespace test_dict_select
         static void Main(string[] args)
         {
             
-            vertex = new List<Vertex>();
-            vertex.Add(new Vertex(0, BRANCH.ROOT, MACHINE.ROOT, 0));
-            storage = new List<Vertex>();
-            storage.Add(new Vertex(0,BRANCH.ROOT, MACHINE.ROOT, 0));
-            muravey = new Muravey[COUNT_MURAVEY];
-            
-            
             try
             {
-                //заполнение списков vertex и  storage
-                readInputfromFile("D:/1.txt");
-
-                dugi= new Duga[vertex.Count, vertex.Count];
-                solution = new theBestSolution(vertex.Count);
-                //добавление дуг в графе 
-                addCurves(vertex, dugi);
-               
                 //проход по графу и назначение виртуаьных элементов на физические
-                Algoritm();
-                Deigstra(vertex, solution.AdjacencyMatrix);
+                Console.WriteLine(String.Format("+---------------+-------+-------+-----------+----------+--------+--------------+"));
+                Console.WriteLine(String.Format("| файл          | вирт. | физ.  | назначено | storage  | хран.  | назначено    +"));
+                Console.WriteLine(String.Format("|               | машин | узлов | вирт->физ | элементы | данных | stor.->хран. +"));
+                Console.WriteLine(String.Format("+---------------+-------+-------+-----------+----------+--------+--------------+"));
+                Algoritm("D:/1.txt");
+                Algoritm("D:/2.txt");
+
 
             }
             catch (Exception ex)
@@ -465,14 +446,42 @@ namespace test_dict_select
         }
         
         //муравьиный алгорит
-        public static void Algoritm()
+        public static void Algoritm(string file)
         {
+            //список вершин (вирт. машин +физ. вычислительных узлов)
+            List<Vertex> vertex = new List<Vertex>();
+            vertex.Add(new Vertex(0, BRANCH.ROOT, MACHINE.ROOT, 0));
+            //массив дуг
+            Duga[,] dugi;
+            theBestSolution solution;
+
+        Muravey[] muravey = new Muravey[COUNT_MURAVEY];
+
+            //заполнение списков vertex и  storage
+            readInputfromFile(file, vertex);
+
+            dugi = new Duga[vertex.Count, vertex.Count];
+            solution = new theBestSolution(vertex.Count);
+            //добавление дуг в графе 
+            addCurves(vertex, dugi);
+
+            int[] count = new int[4];
             //список вирт машин
             List<int> ListVirtual_vertex = new List<int>();
-            for(int i=0; i<vertex.Count; i++)
-                if(vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch ==BRANCH.CALCULATIVE)
+            for (int i = 0; i < vertex.Count; i++)
+            {
+                if (vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch == BRANCH.CALCULATIVE)
+                {
                     ListVirtual_vertex.Add(vertex[i].Num);
-
+                    count[0]++;
+                }
+                if (vertex[i].Type == MACHINE.REAL && vertex[i].Branch == BRANCH.CALCULATIVE)
+                    count[1]++;
+                if (vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch == BRANCH.STORAGE)
+                    count[2]++;
+                if (vertex[i].Type == MACHINE.REAL && vertex[i].Branch == BRANCH.STORAGE)
+                    count[3]++;
+            }
             //список вирт.элементов во всем графе
             List<int> ListVirtual_storage = new List<int>();
             for (int i = 0; i < vertex.Count; i++)
@@ -486,16 +495,17 @@ namespace test_dict_select
                 //обход левой части графа(вирт.машины+физич.узлы)
                 antAlhoritm(vertex, muravey[m], ListVirtual_vertex, dugi, BRANCH.CALCULATIVE);
 
-                Console.WriteLine();
+                //Console.WriteLine();
                 //обход правой части графа(storage-элементы +хранилища данных)
                 antAlhoritm(vertex, muravey[m], ListVirtual_storage, dugi, BRANCH.STORAGE);
 
                 //изменение кол-ва ферромона на дугах
                 updateFerromon(vertex, muravey[m], dugi);
 
-                foreach (int i in muravey[m].Way)
-                    Console.Write(i + "->");
-                Console.WriteLine();
+               
+                    
+                   
+               // Console.WriteLine();
 
                 //сортировка списка соответствий по ключу
                 muravey[m].target = muravey[m].target.OrderBy(pair => pair.Key).ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -504,6 +514,22 @@ namespace test_dict_select
             //оценка сходимости алгоритма
             solution.estimateWay(muravey);
             solution.theAdjacencyMatrixOfAGraph(vertex, dugi);
+            //Deigstra(vertex, solution.AdjacencyMatrix);
+
+            int[] rezult = new int[2];
+            foreach (int i in solution.Target.Keys)
+                for(int k=0; k< vertex.Count;k++)
+                    if (i == k)
+                    {
+                        if (vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch == BRANCH.CALCULATIVE)
+                            rezult[0]++;
+                        if (vertex[i].Type == MACHINE.VIRTUAL && vertex[i].Branch == BRANCH.STORAGE)
+                            rezult[1]++;
+                    }
+
+            Console.WriteLine(String.Format("|{0,15}|{1,7}|{2,7}|{3,11}|{4,10}|{5,8}|{6,14}|", file, count[0], count[1], rezult[0], count[2], count[3], rezult[1]));
+            Console.WriteLine(String.Format("+---------------+-------+-------+-----------+----------+--------+--------------+"));
+            Console.ReadKey();
         }
 
         public static void antAlhoritm(List<Vertex> list, Muravey muravey, List<int> ListVirtual, Duga[,] curves, BRANCH branch)
@@ -648,7 +674,7 @@ namespace test_dict_select
             {
                 if (list[i].Type == MACHINE.VIRTUAL && curves[i, RealMachine] != null)
                 {
-                    curves[i, RealMachine].N = Evristic(i, RealMachine, muravey);
+                    curves[i, RealMachine].N = Evristic(i, RealMachine, muravey, list);
                 }
             }
         }
